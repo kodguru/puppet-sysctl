@@ -29,15 +29,15 @@
 #   Mode for sysctl directory.
 #
 class sysctl::base (
-  Boolean        $purge              = false,
-  Optional[Hash] $values             = undef,
-  Boolean        $hiera_merge_values = false,
-  Boolean        $symlink99          = $sysctl::params::symlink99,
-  Boolean        $sysctl_dir         = $sysctl::params::sysctl_dir,
-  String[1]      $sysctl_dir_path    = $sysctl::params::sysctl_dir_path,
-  String[1]      $sysctl_dir_owner   = $sysctl::params::sysctl_dir_owner,
-  String[1]      $sysctl_dir_group   = $sysctl::params::sysctl_dir_group,
-  String[1]      $sysctl_dir_mode    = $sysctl::params::sysctl_dir_mode,
+  Boolean              $purge              = false,
+  Hash                 $values             = {},
+  Boolean              $hiera_merge_values = false,
+  Boolean              $symlink99          = $sysctl::params::symlink99,
+  Boolean              $sysctl_dir         = true,
+  Stdlib::Absolutepath $sysctl_dir_path    = '/etc/sysctl.d',
+  String[1]            $sysctl_dir_owner   = 'root',
+  String[1]            $sysctl_dir_group   = 'root',
+  Stdlib::Filemode     $sysctl_dir_mode    = '0755',
 ) inherits sysctl::params {
   # Hiera support
   if $hiera_merge_values == true {
@@ -45,16 +45,10 @@ class sysctl::base (
   } else {
     $values_real = $values
   }
-  if $values_real != undef {
-    create_resources(sysctl,$values_real)
-  }
+
+  create_resources(sysctl,$values_real)
 
   if $sysctl_dir {
-    if $purge {
-      $recurse = true
-    } else {
-      $recurse = false
-    }
     file { $sysctl_dir_path:
       ensure  => 'directory',
       owner   => $sysctl_dir_owner,
@@ -62,7 +56,7 @@ class sysctl::base (
       mode    => $sysctl_dir_mode,
       # Magic hidden here
       purge   => $purge,
-      recurse => $recurse,
+      recurse => $purge,
     }
     if $symlink99 and $sysctl_dir_path =~ /^\/etc\/[^\/]+$/ {
       file { "${sysctl_dir_path}/99-sysctl.conf":

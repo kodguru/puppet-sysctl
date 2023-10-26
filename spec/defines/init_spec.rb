@@ -3,6 +3,12 @@ require 'spec_helper'
 describe 'sysctl', type: :define do
   let(:title) { 'net.ipv4.ip_forward' }
 
+  header = <<-END.gsub(%r{^\s+\|}, '')
+    |# This file is being maintained by Puppet.
+    |# DO NOT EDIT
+    |
+  END
+
   on_supported_os.sort.each do |os, facts|
     # define os specific defaults
     symlink99 = if (facts[:os]['family'] == 'RedHat' && facts[:os]['release']['major'].to_i >= 7) ||
@@ -23,11 +29,11 @@ describe 'sysctl', type: :define do
 
       it do
         is_expected.to contain_file('/etc/sysctl.d/net.ipv4.ip_forward.conf').only_with(
-          ensure:   nil,
+          ensure:   'present',
           owner:    'root',
           group:    'root',
           mode:     '0644',
-          content:  "net.ipv4.ip_forward = \n",
+          content:  header + "net.ipv4.ip_forward = \n",
           source:   nil,
           notify:   ['Exec[sysctl-net.ipv4.ip_forward]', 'Exec[update-sysctl.conf-net.ipv4.ip_forward]'],
         )
@@ -53,8 +59,9 @@ describe 'sysctl', type: :define do
 
       it do
         is_expected.to contain_exec('enforce-sysctl-value-net.ipv4.ip_forward').only_with(
-          unless:  '/usr/bin/test "$(/sbin/sysctl -n net.ipv4.ip_forward)" = ""',
-          command: '/sbin/sysctl -w net.ipv4.ip_forward=""',
+          unless:  'test "$(sysctl -n net.ipv4.ip_forward)" = ""',
+          command: 'sysctl -w net.ipv4.ip_forward=""',
+          path:    ['/usr/sbin', '/sbin', '/usr/bin', '/bin'],
         )
       end
     end
@@ -82,7 +89,7 @@ describe 'sysctl', type: :define do
       context 'with value set to valid 1' do
         let(:params) { { value: '1' } }
 
-        it { is_expected.to contain_file('/etc/sysctl.d/net.ipv4.ip_forward.conf').with_content("net.ipv4.ip_forward = 1\n") }
+        it { is_expected.to contain_file('/etc/sysctl.d/net.ipv4.ip_forward.conf').with_content(header + "net.ipv4.ip_forward = 1\n") }
 
         it do
           is_expected.to contain_exec('update-sysctl.conf-net.ipv4.ip_forward').with_command(
@@ -92,8 +99,9 @@ describe 'sysctl', type: :define do
 
         it do
           is_expected.to contain_exec('enforce-sysctl-value-net.ipv4.ip_forward').only_with(
-            unless:  '/usr/bin/test "$(/sbin/sysctl -n net.ipv4.ip_forward)" = 1',
-            command: '/sbin/sysctl -w net.ipv4.ip_forward=1',
+            unless:  'test "$(sysctl -n net.ipv4.ip_forward)" = 1',
+            command: 'sysctl -w net.ipv4.ip_forward=1',
+            path:    ['/usr/sbin', '/sbin', '/usr/bin', '/bin'],
           )
         end
       end
@@ -139,7 +147,7 @@ describe 'sysctl', type: :define do
 
         it do
           is_expected.to contain_file('/etc/sysctl.d/net.ipv4.ip_forward.conf').with(
-            content:  "# testing\nnet.ipv4.ip_forward = \n",
+            content: header + "# testing\nnet.ipv4.ip_forward = \n",
           )
         end
       end
@@ -149,7 +157,7 @@ describe 'sysctl', type: :define do
 
         it do
           is_expected.to contain_file('/etc/sysctl.d/net.ipv4.ip_forward.conf').with(
-            content:  "# test\n# ing\nnet.ipv4.ip_forward = \n",
+            content: header + "# test\n# ing\nnet.ipv4.ip_forward = \n",
           )
         end
       end
@@ -158,24 +166,12 @@ describe 'sysctl', type: :define do
         let(:params) { { content: 'testing' } }
 
         it { is_expected.to contain_file('/etc/sysctl.d/net.ipv4.ip_forward.conf').with_content('testing') }
-
-        it do
-          is_expected.to contain_file('/etc/sysctl.d/net.ipv4.ip_forward.conf').with(
-            content: 'testing',
-          )
-        end
       end
 
       context 'with source set to valid testing' do
-        let(:params) { { source: 'testing' } }
+        let(:params) { { source: '/test/ing' } }
 
-        it { is_expected.to contain_file('/etc/sysctl.d/net.ipv4.ip_forward.conf').with_source('testing') }
-
-        it do
-          is_expected.to contain_file('/etc/sysctl.d/net.ipv4.ip_forward.conf').with(
-            source: 'testing',
-          )
-        end
+        it { is_expected.to contain_file('/etc/sysctl.d/net.ipv4.ip_forward.conf').with_source('/test/ing') }
       end
 
       context 'with enforce set to valid false' do

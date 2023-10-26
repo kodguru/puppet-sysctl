@@ -31,13 +31,13 @@
 #   Enforce configured value during each run (can't work with custom files).
 #
 define sysctl (
-  Optional[Enum['present', 'absent']] $ensure  = undef,
+  Enum['present', 'absent']           $ensure  = 'present',
   Optional[String[1]]                 $value   = undef,
   Optional[String[1]]                 $prefix  = undef,
   String                              $suffix  = '.conf',
   Optional[Variant[Array, String[1]]] $comment = undef,
   Optional[String[1]]                 $content = undef,
-  Optional[String[1]]                 $source  = undef,
+  Optional[Stdlib::Filesource]        $source  = undef,
   Boolean                             $enforce = true,
 ) {
   include sysctl::base
@@ -54,17 +54,13 @@ define sysctl (
   $sysctl_d_file = regsubst($_sysctl_d_file, '[/ ]', '_', 'G')
 
   # If we have an explicit content or source, use them
-  if $content or $source {
+  if $content {
     $file_content = $content
-    $file_source = $source
   } else {
     $file_content = template("${module_name}/sysctl.d-file.erb")
-    $file_source = undef
   }
 
-  if $ensure != 'absent' {
-    # Present
-
+  if $ensure == 'present' {
     # The permanent change
     file { "/etc/sysctl.d/${sysctl_d_file}":
       ensure  => $ensure,
@@ -72,7 +68,7 @@ define sysctl (
       group   => 'root',
       mode    => '0644',
       content => $file_content,
-      source  => $file_source,
+      source  => $source,
       notify  => [
         Exec["sysctl-${title}"],
         Exec["update-sysctl.conf-${title}"],
@@ -104,8 +100,9 @@ define sysctl (
       $qvalue = shellquote("${value}")
       # lint:endignore
       exec { "enforce-sysctl-value-${qtitle}":
-        unless  => "/usr/bin/test \"$(/sbin/sysctl -n ${qtitle})\" = ${qvalue}",
-        command => "/sbin/sysctl -w ${qtitle}=${qvalue}",
+        unless  => "test \"$(sysctl -n ${qtitle})\" = ${qvalue}",
+        command => "sysctl -w ${qtitle}=${qvalue}",
+        path    => ['/usr/sbin', '/sbin', '/usr/bin', '/bin'],
       }
     }
   } else {
